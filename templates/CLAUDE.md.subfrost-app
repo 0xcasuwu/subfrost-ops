@@ -1,0 +1,36 @@
+# CLAUDE.md — subfrost-app
+
+> Drop this file at the root of `subfrost-app` to pull in the subfrost-ops domain pack.
+
+Next.js 13+ App Router frontend for the Alkanes metaprotocol. Wallet adapters: UniSat, OYL, Xverse, OKX, keystore. AMM, vaults (FIRE), cross-chain bridges, frBTC wrapping.
+
+## Pre-work skills to load
+- `alkanes-onboarding` — mental model + pre-work rules
+- `browser-wallet-safety` — the 2026-03-01 symbolic-address bug + PSBT/UTXO rules
+- `height-poller-frontend` — single-source query invalidation
+- `ts-sdk-alkanes-execute` — `inputRequirements` format + two-protostone composition
+- `protostone-cellpack-edicts` — when something doesn't dispatch
+
+## Reviewers to invoke
+- `subfrost-frontend-reviewer` for any hook / wallet adapter change
+- `bitcoin-security-reviewer` for any PSBT / signing path change
+- `typescript-reviewer` (built-in) for general TS hygiene
+
+## Rules pack
+- `rules/alkanes/*` (security funds-at-risk list is the most important)
+- `rules/typescript/*` (built-in)
+- `rules/web/*` (built-in)
+- `rules/common/*` (built-in)
+
+## Tests
+```bash
+pnpm typecheck
+pnpm lint
+pnpm test
+pnpm e2e         # Playwright; needs devnet running
+```
+
+## Reference
+- `~/reference/ECC/docs/patterns/subfrost-app.md` — canonical patterns + recent bug fixes
+- `~/reference/alkanes-flashcards/lib/seed-data-v3.ts` — frontend-specific cards (Browser Wallet, Curated Pools, etc.)
+- TX `985436b5...` postmortem for the symbolic-address bug

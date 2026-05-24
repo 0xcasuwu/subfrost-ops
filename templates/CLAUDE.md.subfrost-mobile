@@ -1,0 +1,43 @@
+# CLAUDE.md — subfrost-mobile
+
+> Drop this file at the root of `subfrost-mobile` to pull in the subfrost-ops domain pack.
+
+Cross-platform wallet. Android Compose + iOS SwiftUI shells over a shared Rust core via uniffi. Hardware-backed key wrap (StrongBox / Secure Enclave). Hyflaria-tunneled RPC.
+
+## Pre-work skills to load
+- `alkanes-onboarding` — broader context
+- `uniffi-checksum-survival` — the build-time gotcha that crashes apps on first call
+- `browser-wallet-safety` (cross-applies — mobile signs the same PSBTs)
+
+## Reviewers to invoke
+- `subfrost-mobile-ffi-reviewer` for any FFI surface or platform-bridge change
+- `bitcoin-security-reviewer` for PSBT / signing changes
+- `swift-reviewer` (built-in) for SwiftUI code
+- `kotlin-reviewer` (built-in) for Compose code
+- `rust-reviewer` (built-in) for core crate changes
+
+## Rules pack
+- `rules/alkanes/security.md` (Mobile FFI section)
+- `rules/swift/*`, `rules/kotlin/*`, `rules/rust/*`
+- `rules/common/*`
+
+## Build sequence (canonical, do not skip)
+```bash
+# Release .so per ABI (shipped in APK)
+cargo ndk -t arm64-v8a --platform 29 build --release -p subfrost-mobile-ffi --lib
+cargo ndk -t x86_64 --platform 29 build --release -p subfrost-mobile-ffi --lib
+
+# DEBUG .so for bindgen (NOT shipped — has metadata)
+cargo build -p subfrost-mobile-ffi --lib
+
+# Regenerate Kotlin from DEBUG .so
+cargo run --release --bin uniffi-bindgen -- generate \
+    --library target/debug/libsubfrost_mobile_ffi.so \
+    --language kotlin --out-dir android-compose/app/src/main/java/
+
+# Run the in-sync test
+cargo test -p subfrost-mobile-ffi --test uniffi_bindings_in_sync
+```
+
+## Reference
+- `~/reference/ECC/docs/patterns/subfrost-mobile.md`

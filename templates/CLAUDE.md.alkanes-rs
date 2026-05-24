@@ -1,0 +1,35 @@
+# CLAUDE.md — alkanes-rs
+
+> Drop this file at the root of `alkanes-rs` to pull in the subfrost-ops domain pack.
+
+This is the canonical Rust implementation of the Alkanes metaprotocol on Bitcoin. Workspace contains the indexer crates, the WASM contract runtime helpers, the `metashrew_core` bridge, and the `ts-sdk` for frontend consumption.
+
+## Pre-work skills to load
+- `alkanes-onboarding` — mental model + pre-work rules
+- `opcode-dispatch` — `#[derive(MessageDispatch)]` conventions
+- `protostone-cellpack-edicts` — the canonical `output: 1` pattern
+- `metashrew-indexer-patterns` — `_start`, append-only storage, view fns
+- `ts-sdk-alkanes-execute` — frontend-side call shape
+- `wasm-build-pipeline` — Cargo profile + size budgets
+
+## Reviewers to invoke
+- `alkanes-protocol-reviewer` for contract opcode changes
+- `metashrew-indexer-reviewer` for indexer changes
+- `wasm-contract-auditor` before deploying a new contract
+- `rust-reviewer` (built-in) for general Rust hygiene
+
+## Rules pack
+- `rules/alkanes/*` (security, patterns, testing, coding-style, hooks)
+- `rules/rust/*` (built-in)
+- `rules/common/*` (built-in)
+
+## Tests
+```bash
+cargo test                 # all crates
+cargo test -p alkanes-rs   # indexer only
+```
+
+## Reference
+- `~/reference/ECC/docs/patterns/alkanes-rs.md` — canonical patterns
+- `~/reference/ECC/docs/patterns/metashrew.md` — runtime patterns
+- `~/reference/alkanes-flashcards/` — 280+ curated domain facts

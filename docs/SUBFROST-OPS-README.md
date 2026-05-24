@@ -1,0 +1,95 @@
+# subfrost-ops
+
+A Claude Code domain pack for the Alkanes / Bitcoin metaprotocol stack — Rust+WASM contracts (alkanes-rs, frost-lend, boiler, Fujin, subfrost-alkanes), the metashrew runtime, the Next.js frontend (subfrost-app), threshold signing (subzero-rs), and the cross-platform mobile wallet (subfrost-mobile).
+
+Forked from [`affaan-m/ECC`](https://github.com/affaan-m/ECC) as `0xcasuwu/subfrost-ops`. Inherits the full ECC harness (60 agents, 232 skills, hooks, rules, continuous-learning-v2) and layers Alkanes-specific knowledge on top.
+
+## Why this fork exists
+
+A general-purpose Claude Code harness has no idea what a protostone is, why receipt tokens replace `msg.sender`, that browser-wallet symbolic addresses cost real money, or that uniffi bindings must be regenerated from a debug `.so`. Knowledge of those things lives across 12+ repos, a flashcards app, an MCP server, and the heads of three people.
+
+This pack consolidates that knowledge into shape Claude Code natively understands — skills, agents, rules, hooks — and turns on the `continuous-learning-v2` instinct system so the pack grows automatically as more is discovered.
+
+## What's in it
+
+| Component | Count | Highlights |
+|---|---:|---|
+| Domain agents | 10 | `alkanes-explorer`, `alkanes-protocol-reviewer`, `bitcoin-security-reviewer`, `wasm-contract-auditor`, `protostone-debugger`, `subfrost-frontend-reviewer`, `metashrew-indexer-reviewer`, `subzero-frost-reviewer`, `subfrost-mobile-ffi-reviewer`, `cross-repo-navigator` |
+| Domain skills | 14 | `alkanes-onboarding`, `protostone-cellpack-edicts`, `receipt-model`, `three-phase-init`, `opcode-dispatch`, `height-poller-frontend`, `browser-wallet-safety`, `ts-sdk-alkanes-execute`, `metashrew-indexer-patterns`, `wasm-build-pipeline`, `alkanes-test-harness`, `uniffi-checksum-survival`, `frost-roast-signing-flow`, `cross-repo-navigation` |
+| Domain rules | 5 | `rules/alkanes/{coding-style, hooks, patterns, security, testing}.md` |
+| Slash commands | 8 | `/alkanes-deploy`, `/protostone-debug`, `/opcode-trace`, `/receipt-explain`, `/alkanes-test`, `/metashrew-trace`, `/cross-repo-grep`, `/flashcard-lookup` |
+| Hooks | 1 new | `scripts/hooks/alkanes-context-injector.js` — SessionStart cwd → cheatsheet mapping |
+| CLAUDE.md templates | 5 | one per target repo (`alkanes-rs`, `subfrost-app`, `metashrew`, `subzero-rs`, `subfrost-mobile`) |
+| Pattern docs | 7 | `docs/patterns/{INVENTORY, alkanes-rs, subfrost-app, metashrew, subzero-rs, subfrost-mobile, existing-knowledge-assets, contracts-frost-boiler-fujin}.md` |
+| Continuous-learning-v2 | enabled by default | so every Alkanes-stack session captures instincts from day one |
+
+## Install
+
+### Option 1 — Claude Code plugin (recommended once published)
+```
+/plugin marketplace add https://github.com/0xcasuwu/subfrost-ops
+/plugin install subfrost-ops@subfrost-ops
+```
+
+### Option 2 — manual clone
+```bash
+git clone https://github.com/0xcasuwu/subfrost-ops.git ~/reference/ECC
+cd ~/reference/ECC
+./install.sh --profile full          # macOS/Linux
+.\install.ps1 --profile full         # Windows PowerShell
+```
+
+This populates `~/.claude/` with the full pack. The `rules/alkanes/` pack is the one that ECC's standard installer doesn't auto-distribute — copy it manually:
+```bash
+cp -r rules/alkanes ~/.claude/rules/ecc/
+```
+
+### Per-repo activation
+Drop the matching CLAUDE.md template into the target repo:
+```bash
+cp ~/reference/ECC/templates/CLAUDE.md.alkanes-rs ~/code/alkanes-rs/CLAUDE.md
+cp ~/reference/ECC/templates/CLAUDE.md.subfrost-app ~/code/subfrost-app/CLAUDE.md
+# ... etc
+```
+
+## Verify
+
+After install, spawn a Claude Code session in any of the target repos and confirm:
+1. `alkanes-context-injector` fires at SessionStart and lists the right cheatsheet skills for the cwd
+2. `/alkanes-onboarding` invokes the master skill cleanly
+3. `continuous-learning-v2` observer is enabled (`/instinct-status` reports a project hash + observation count)
+4. Pattern docs render in `docs/patterns/`
+
+Smoke test the agents:
+```
+> use the alkanes-explorer agent to trace opcode 11 (AddLiquidity) end-to-end
+> use the protostone-debugger agent to decode <txid>
+> use the bitcoin-security-reviewer agent on the current diff
+```
+
+## Growing the pack
+
+Three loops keep this pack improving:
+
+1. **Continuous-learning-v2 instincts** — every tool call captured to `$XDG_DATA_HOME/ecc-homunculus/projects/<hash>/observations.jsonl`. Run `/evolve` periodically to cluster instincts into new skills/commands. Run `/promote` to lift cross-project patterns to global scope.
+2. **Flashcards → skills** — every new deck in `alkanes-flashcards` is a candidate for a new skill. The `/flashcard-lookup` command bridges to the existing 280+ curated facts.
+3. **Patterns docs** — `docs/patterns/*.md` are living documents. Update them when a new pattern emerges, when a postmortem reveals an anti-pattern, or when an upstream repo refactors materially.
+
+## Related assets in the 0xcasuwu ecosystem
+
+- [`alkanes-flashcards`](https://github.com/0xcasuwu/alkanes-flashcards) — 280+ curated domain facts (SM-2 spacing). Read `docs/patterns/existing-knowledge-assets.md` for the integration plan.
+- [`alkanes-mcp`](https://github.com/0xcasuwu/alkanes-mcp) — MCP server exposing 6 alkanes repos as tools (`list_files`, `search_code`, `get_function_details`, etc.). Register in `~/.claude/mcp-configs/mcp-servers.json` to surface in any Claude Code session.
+
+## Upstream
+
+This is a fork of `affaan-m/ECC`. Keep the upstream remote and pull in fixes / new agents / new skills periodically:
+```bash
+git remote add upstream https://github.com/affaan-m/ECC
+git fetch upstream
+git merge upstream/main
+# resolve conflicts (mostly in /docs/* index files and command registry)
+```
+
+## License
+
+Inherits ECC's license. Domain-specific additions (`agents/alkanes-*`, `skills/{alkanes-onboarding, protostone-cellpack-edicts, ...}`, `rules/alkanes/`, `commands/{alkanes-deploy, protostone-debug, ...}`, `docs/patterns/*`) are MIT-licensed by 0xcasuwu.
