@@ -2,6 +2,8 @@
 
 > Drop this file at the root of `subzero-rs` to pull in the subfrost-ops domain pack.
 
+**Layer**: foundational. This repo publishes the signing protocol consumed by cross-chain bridge flows in **subfrost-app** and **subfrost-mobile**. Signing-protocol or PSBT-format changes can break bridge UX without breaking either repo's build. For non-trivial changes, run the `stack-preflight` agent. See `docs/LAYER-MODEL.md`.
+
 Threshold signing OS for Bitcoin. FROST + ROAST + frtun (quantum-safe overlay network). Bridge signer programs for Bitcoin, Ethereum, Zcash.
 
 ## Cardinal rule

@@ -2,6 +2,8 @@
 
 > Drop this file at the root of `subfrost-mobile` to pull in the subfrost-ops domain pack.
 
+**Layer**: UX. This repo consumes stable APIs from foundational repos (**alkanes-rs** shared Rust types, **subzero-rs** signing for cross-chain bridges). Changes here are locally bounded — they cannot break foundational repos. No upstream verification required; verify your own platform-side consumers (Android instrumented tests, iOS XCTest, FFI binding-sync test). Use `pattern-conformance` skill for the canonical patterns to mirror. See `docs/LAYER-MODEL.md`.
+
 Cross-platform wallet. Android Compose + iOS SwiftUI shells over a shared Rust core via uniffi. Hardware-backed key wrap (StrongBox / Secure Enclave). Hyflaria-tunneled RPC.
 
 ## Pre-work skills to load

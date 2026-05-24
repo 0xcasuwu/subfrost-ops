@@ -2,12 +2,12 @@
 /**
  * SessionStart hook — alkanes-context-injector
  *
- * Detects the cwd against a map of known Alkanes-stack repos and emits
- * a small JSON object to stdout that the harness will surface as
- * SessionStart context. Lists the matching skills the LLM should load
- * for this repo.
+ * Detects the cwd against a map of known subfrost-ops stack repos and
+ * emits a layer-aware context block: which layer the repo is in
+ * (foundational vs ux), what that implies for the user's change scope,
+ * the skills to load, and inline freshness output.
  *
- * Stays under ~600 chars output to fit comfortably inside
+ * Stays under ~1200 chars output to fit comfortably inside
  * ECC_SESSION_START_MAX_CHARS budgets.
  *
  * Exits 0 on any error so it never blocks session start.
@@ -15,62 +15,97 @@
 
 const path = require('path');
 
+// `layer` is the architectural position. `ripples_to` only set for
+// foundational entries — names which UX repos typically care when the
+// foundational repo's APIs evolve. The LLM uses these as prompts for
+// impact reasoning, not as enforced contracts.
 const REPO_SKILL_MAP = [
   {
     match: /[\\/]alkanes-rs([\\/]|$)/i,
     repo: 'alkanes-rs',
-    skills: ['alkanes-onboarding', 'opcode-dispatch', 'protostone-cellpack-edicts', 'metashrew-indexer-patterns', 'ts-sdk-alkanes-execute', 'wasm-build-pipeline'],
+    layer: 'foundational',
+    ripples_to: ['subfrost-app (ts-sdk)', 'subfrost-mobile (Rust types)'],
+    skills: ['pattern-conformance', 'stack-as-codebase', 'alkanes-onboarding', 'opcode-dispatch', 'protostone-cellpack-edicts', 'metashrew-indexer-patterns', 'ts-sdk-alkanes-execute', 'wasm-build-pipeline'],
   },
   {
     match: /[\\/]subfrost-app([\\/]|$)/i,
     repo: 'subfrost-app',
-    skills: ['alkanes-onboarding', 'browser-wallet-safety', 'height-poller-frontend', 'ts-sdk-alkanes-execute', 'protostone-cellpack-edicts'],
+    layer: 'ux',
+    skills: ['pattern-conformance', 'stack-as-codebase', 'alkanes-onboarding', 'browser-wallet-safety', 'height-poller-frontend', 'ts-sdk-alkanes-execute', 'protostone-cellpack-edicts'],
   },
   {
     match: /[\\/]metashrew([\\/]|$)/i,
     repo: 'metashrew',
-    skills: ['alkanes-onboarding', 'metashrew-indexer-patterns', 'wasm-build-pipeline'],
+    layer: 'foundational',
+    ripples_to: ['alkanes-rs (runtime ABI)'],
+    skills: ['pattern-conformance', 'stack-as-codebase', 'alkanes-onboarding', 'metashrew-indexer-patterns', 'wasm-build-pipeline'],
   },
   {
     match: /[\\/]subzero-rs([\\/]|$)/i,
     repo: 'subzero-rs',
-    skills: ['alkanes-onboarding', 'frost-roast-signing-flow'],
+    layer: 'foundational',
+    ripples_to: ['subfrost-app (cross-chain bridge flow)', 'subfrost-mobile (cross-chain bridge flow)'],
+    skills: ['pattern-conformance', 'stack-as-codebase', 'alkanes-onboarding', 'frost-roast-signing-flow'],
   },
   {
     match: /[\\/]subfrost-mobile([\\/]|$)/i,
     repo: 'subfrost-mobile',
-    skills: ['alkanes-onboarding', 'uniffi-checksum-survival'],
+    layer: 'ux',
+    skills: ['pattern-conformance', 'stack-as-codebase', 'alkanes-onboarding', 'uniffi-checksum-survival', 'browser-wallet-safety'],
   },
   {
     match: /[\\/](frost-lend|boiler|Fujin-contracts|subfrost-alkanes)([\\/]|$)/i,
     repo: 'alkanes-contracts',
-    skills: ['alkanes-onboarding', 'three-phase-init', 'receipt-model', 'opcode-dispatch', 'protostone-cellpack-edicts', 'alkanes-test-harness'],
+    layer: 'foundational',
+    ripples_to: ['subfrost-app (when these contracts back UX features)', 'subfrost-mobile (same)'],
+    skills: ['pattern-conformance', 'stack-as-codebase', 'alkanes-onboarding', 'three-phase-init', 'receipt-model', 'opcode-dispatch', 'protostone-cellpack-edicts', 'alkanes-test-harness'],
   },
   {
     match: /[\\/]boiler-v2([\\/]|$)/i,
     repo: 'boiler-v2',
-    skills: ['alkanes-onboarding', 'three-phase-init', 'receipt-model', 'opcode-dispatch', 'protostone-cellpack-edicts', 'browser-wallet-safety', 'height-poller-frontend', 'alkanes-test-harness'],
+    layer: 'ux',
+    skills: ['pattern-conformance', 'stack-as-codebase', 'alkanes-onboarding', 'three-phase-init', 'receipt-model', 'opcode-dispatch', 'protostone-cellpack-edicts', 'browser-wallet-safety', 'height-poller-frontend', 'alkanes-test-harness'],
   },
   {
     match: /[\\/]alkanes-flashcards([\\/]|$)/i,
     repo: 'alkanes-flashcards',
-    skills: ['alkanes-onboarding', 'cross-repo-navigation'],
+    layer: 'ux',
+    skills: ['pattern-conformance', 'stack-as-codebase', 'alkanes-onboarding', 'cross-repo-navigation'],
   },
   {
     match: /[\\/]alkanes-mcp([\\/]|$)/i,
     repo: 'alkanes-mcp',
-    skills: ['alkanes-onboarding', 'cross-repo-navigation'],
+    layer: 'ux',
+    skills: ['pattern-conformance', 'stack-as-codebase', 'alkanes-onboarding', 'cross-repo-navigation'],
   },
 ];
 
 function runFreshness() {
-  // Best-effort: invoke stack/freshness.js and capture its output. Fail silent.
   try {
     const { execFileSync } = require('child_process');
     const freshnessScript = path.join(__dirname, '..', 'stack', 'freshness.js');
     if (!require('fs').existsSync(freshnessScript)) return '';
     return execFileSync('node', [freshnessScript], { encoding: 'utf8', timeout: 30000, stdio: ['ignore', 'pipe', 'ignore'] });
   } catch { return ''; }
+}
+
+function buildLayerContext(hit) {
+  if (hit.layer === 'foundational') {
+    const ripples = (hit.ripples_to || []).map(r => `  - ${r}`).join('\n');
+    return [
+      `**Layer**: foundational — this repo publishes APIs/protocols other repos consume.`,
+      ``,
+      `Changes here often matter to:`,
+      ripples || '  - (no downstream ripples recorded)',
+      ``,
+      `When you change a published surface, surmise specific impacts using the \`pattern-conformance\` skill + the named consumers. The \`stack-preflight\` agent will return a structured context brief on request.`,
+    ].join('\n');
+  }
+  return [
+    `**Layer**: ux — this repo consumes stable APIs from foundational layers; changes here are locally bounded.`,
+    ``,
+    `No upstream verification required. Verify your own consumers (tests, sibling features). The \`pattern-conformance\` skill catalogs the patterns you should mirror.`,
+  ].join('\n');
 }
 
 function main() {
@@ -81,17 +116,17 @@ function main() {
       process.exit(0);
       return;
     }
-    // Always load stack-as-codebase first
-    const skills = ['stack-as-codebase', ...hit.skills];
     const lines = [
       `# Subfrost-ops stack context — ${hit.repo}`,
       ``,
-      `cwd matches a known stack repo. The 5 repos (alkanes-rs, subfrost-app, metashrew, subzero-rs, subfrost-mobile) are ONE integrated codebase; treat them as such. Load these skills before any non-trivial change:`,
+      buildLayerContext(hit),
       ``,
-      ...skills.map(s => `  - \`${s}\``),
+      `Skills to load:`,
+      ``,
+      ...hit.skills.map(s => `  - \`${s}\``),
       ``,
       `Reference: docs/patterns/${hit.repo === 'alkanes-contracts' ? 'contracts-frost-boiler-fujin' : hit.repo}.md`,
-      `Verification: run agent \`stack-preflight\` BEFORE any change that touches a cross-repo seam.`,
+      `Layer model: docs/LAYER-MODEL.md`,
       ``,
     ];
     const freshness = runFreshness();

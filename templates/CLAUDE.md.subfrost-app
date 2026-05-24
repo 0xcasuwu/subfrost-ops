@@ -2,6 +2,8 @@
 
 > Drop this file at the root of `subfrost-app` to pull in the subfrost-ops domain pack.
 
+**Layer**: UX. This repo consumes stable APIs from foundational repos (**alkanes-rs** ts-sdk, **subzero-rs** signing). Changes here are locally bounded — they cannot break foundational repos. No upstream verification required; verify your own consumers (tests, sibling hooks). Use `pattern-conformance` skill for the canonical patterns to mirror. See `docs/LAYER-MODEL.md`.
+
 Next.js 13+ App Router frontend for the Alkanes metaprotocol. Wallet adapters: UniSat, OYL, Xverse, OKX, keystore. AMM, vaults (FIRE), cross-chain bridges, frBTC wrapping.
 
 ## Pre-work skills to load

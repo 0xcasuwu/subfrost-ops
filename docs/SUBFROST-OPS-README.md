@@ -23,7 +23,29 @@ This pack consolidates that knowledge into shape Claude Code natively understand
 | Pattern docs | 7 | `docs/patterns/{INVENTORY, alkanes-rs, subfrost-app, metashrew, subzero-rs, subfrost-mobile, existing-knowledge-assets, contracts-frost-boiler-fujin}.md` |
 | Continuous-learning-v2 | enabled by default | so every Alkanes-stack session captures instincts from day one |
 
-## v0.2.0 additions — integrated-codebase mode
+## v0.2.1 — directional model + pattern-conformance digest
+
+v0.2.0 overspecified by treating the 5 repos as mechanically coupled (bidirectional `cross_repo_deps`, `version_pins`, a `stack-preflight` agent that "verified both ends"). The reality:
+
+- **Conceptually integrated, mechanically independent**. No shared build; no enforced version pins; no compile-time imports across boundaries. A change in one does not break-build another.
+- **Directional impact**. Foundational repos (alkanes-rs, metashrew, subzero-rs) ripple UP to UX repos (subfrost-app, subfrost-mobile). UX changes do NOT ripple down — alkanes-rs is always fine when subfrost-app is altered.
+- **The harness provides context; the LLM surmises impact**. No mechanical dep tracking, no automated verification of cross-repo wiring.
+
+v0.2.1 components:
+- **`docs/LAYER-MODEL.md`** — permanent reference for the two-layer directional model with examples + common misconceptions
+- **`stack/manifest.yaml`** — restructured: top-level `layers:` block; per-repo `layer:` field; `ripples_to:` (foundational only, informational prompts for impact reasoning); `version_pins` and bidirectional `cross_repo_deps` blocks removed
+- **`skills/stack-as-codebase`** — rewritten as a mental model (unidirectional diagram + "questions to surmise" + worked examples) rather than a rigid 7-step verification protocol
+- **`skills/pattern-conformance`** — NEW digest skill cataloging the 17 canonical patterns already documented across the corpus (opcode dispatch, two-protostone, HeightPoller, receipt auth, three-phase init, browser-wallet safety, factory router, uniffi DEBUG bindings, zeroize, IndexPointer, PSBT patching, UTXO selection, regtest collision, multi-address support, fork heights, CL2 scoping, manifest-as-registry). Loaded at SessionStart so future work reaches for canonical patterns first
+- **`agents/stack-preflight`** — refactored from verifier into a **context loader**. Returns layer + applicable canonical patterns + invariants + (for foundational changes) `ripples_to` prompts. Does NOT issue verdicts
+- **`scripts/stack/snapshot.js`** — `tsSdkVersionSkew` → `tsSdkPinReport`; "drift" language removed; pin is informational only
+- **`scripts/hooks/alkanes-context-injector.js`** — emits layer-aware SessionStart context (foundational: "this repo publishes; changes ripple to [list]"; UX: "this repo consumes stable APIs; changes are locally bounded")
+- **`rules/alkanes/security.md`** — auditing section split by layer (foundational changes require downstream-reviewer passes; UX changes do not)
+- **All 5 `templates/CLAUDE.md.<repo>`** — top-of-file layer tag with impact-direction note
+- **`/pattern-conformance` slash command** — invokes the digest skill with optional topic filter
+
+The pattern-conformance digest is the key new component. It's a TOC over the existing corpus, not a rewrite — every entry points to the authoritative skill/rule/pattern-doc where the pattern is fully defined. The goal: when starting any non-trivial change, the LLM has the canonical patterns in context immediately, so its output mirrors them rather than inventing parallel approaches.
+
+## v0.2.0 additions — integrated-codebase mode (superseded by v0.2.1 — kept for context)
 
 The v0.1.0 surface treats each repo as a destination for the harness. v0.2.0 makes the harness *aware that the five repos are one system*.
 

@@ -2,6 +2,8 @@
 
 > Drop this file at the root of `alkanes-rs` to pull in the subfrost-ops domain pack.
 
+**Layer**: foundational. This repo publishes the indexer + ts-sdk + types other repos consume. Changes here may ripple to **subfrost-app** (via ts-sdk) and **subfrost-mobile** (via shared Rust types) — not mechanically, but conceptually. For non-trivial changes, run the `stack-preflight` agent to get a downstream-ripple context brief. See `docs/LAYER-MODEL.md` for the directional-impact rule.
+
 This is the canonical Rust implementation of the Alkanes metaprotocol on Bitcoin. Workspace contains the indexer crates, the WASM contract runtime helpers, the `metashrew_core` bridge, and the `ts-sdk` for frontend consumption.
 
 ## Pre-work skills to load

@@ -1,20 +1,32 @@
 ---
 # subfrost-ops stack manifest
 #
-# Single source of truth for the 5 repos this harness treats as ONE codebase.
-# Edits here drive: the freshness check, the snapshot generator, the
-# stack-preflight agent's verification list, the SessionStart context-injector,
-# and the cross-repo-navigator agent's repo map.
+# Registry of the 5 repos this harness gives the LLM context for. NOT a
+# coupling database. The repos are conceptually integrated but not
+# mechanically coupled — no shared build, no enforced version pins, no
+# compile-time imports across boundaries. A change in one does not
+# break-build another.
 #
-# Pinning convention: `last_known_good` is the SHA the patterns docs and
-# skills were last reconciled against. When upstream advances past it, the
-# freshness check flags drift loudly.
+# Impact is DIRECTIONAL: foundational repos publish APIs/protocols; UX
+# repos consume them. Changes in foundational repos often ripple UP to UX
+# (the LLM should surmise specific impacts using the patterns library
+# and pattern-conformance skill). Changes in UX repos do NOT ripple
+# down — alkanes-rs is always fine when subfrost-app is altered.
 #
-# Refreshed: 2026-05-23
+# Refreshed: 2026-05-24
 
 stack_name: subfrost-ops
 stack_id: 0xcasuwu/subfrost
-captured_at: "2026-05-23"
+captured_at: "2026-05-24"
+
+# The layered model
+layers:
+  foundational:
+    repos: [alkanes-rs, metashrew, subzero-rs]
+    description: "Publishers of ABIs / protocols / consensus-critical logic. When these change, UX consumers may need to adapt — the LLM should surmise specific impacts from the change description + the pattern-conformance skill."
+  ux:
+    repos: [subfrost-app, subfrost-mobile]
+    description: "Consumers of foundational APIs. Changes here are locally bounded. No upstream verification needed."
 
 repos:
   alkanes-rs:
@@ -22,6 +34,7 @@ repos:
     clone_path: ~/reference/alkanes-rs
     default_branch: develop
     last_known_good: ee5c22649271e2a3c594ac6e850978911bb19dee
+    layer: foundational
     role: rust-indexer-and-ts-sdk
     visibility: public
     languages: [rust, typescript]
@@ -33,6 +46,7 @@ repos:
       - metashrew-indexer-patterns
       - ts-sdk-alkanes-execute
       - wasm-build-pipeline
+      - pattern-conformance
       - stack-as-codebase
     reviewers:
       - alkanes-protocol-reviewer
@@ -40,19 +54,67 @@ repos:
       - wasm-contract-auditor
       - rust-reviewer
     fork_heights:
-      V220_FORK_HEIGHT: { source: "crates/alkanes/src/precompile_diesel.rs", note: "DIESEL native precompile dispatch; consensus-critical" }
-    cross_repo_deps:
-      consumed_by:
-        - { repo: subfrost-app, surface: "ts-sdk", note: "aliased in next.config.mjs as @alkanes/ts-sdk/wasm → lib/oyl/alkanes/" }
-        - { repo: subfrost-mobile, surface: "rust crates", note: "shared Rust core links against alkanes-rs types" }
-      consumes:
-        - { repo: metashrew, surface: "runtime ABI", note: "alkanes-rs builds as a metashrew indexer module" }
+      V220_FORK_HEIGHT:
+        source: "crates/alkanes/src/precompile_diesel.rs"
+        note: "DIESEL native precompile dispatch; consensus-critical — clients and contracts must respect"
+    ripples_to:
+      - { repo: subfrost-app, surface: "ts-sdk", note: "subfrost-app aliases this repo's ts-sdk WASM via next.config.mjs. SDK ABI changes typically merit a downstream review in subfrost-app." }
+      - { repo: subfrost-mobile, surface: "shared Rust types", note: "subfrost-mobile's shared core references this repo's types as Cargo workspace deps. Type changes typically merit a downstream review in subfrost-mobile." }
+    notes: "Foundational indexer + SDK. Most-touched repo in the stack."
+
+  metashrew:
+    upstream: https://github.com/kungfuflex/metashrew
+    clone_path: ~/reference/metashrew
+    default_branch: master
+    last_known_good: 31c4198c578c1642b02f7ca6cd662612e7a8079c
+    layer: foundational
+    role: wasm-indexing-runtime
+    visibility: public
+    languages: [rust]
+    patterns_doc: docs/patterns/metashrew.md
+    cwd_skills:
+      - alkanes-onboarding
+      - metashrew-indexer-patterns
+      - wasm-build-pipeline
+      - pattern-conformance
+      - stack-as-codebase
+    reviewers:
+      - metashrew-indexer-reviewer
+      - wasm-contract-auditor
+      - rust-reviewer
+    notes: "No develop branch exists. master is active."
+    ripples_to:
+      - { repo: alkanes-rs, surface: "host functions + runtime ABI", note: "alkanes-rs builds against this runtime. ABI changes ripple here first; then through alkanes-rs to UX." }
+
+  subzero-rs:
+    upstream: https://github.com/subfrost/subzero-rs
+    clone_path: ~/reference/subzero-rs
+    default_branch: develop
+    last_known_good: 6e8884cad2499124926814d758ce643dd6b188e9
+    layer: foundational
+    role: threshold-signing-os
+    visibility: private
+    languages: [rust]
+    patterns_doc: docs/patterns/subzero-rs.md
+    cwd_skills:
+      - alkanes-onboarding
+      - frost-roast-signing-flow
+      - pattern-conformance
+      - stack-as-codebase
+    reviewers:
+      - subzero-frost-reviewer
+      - rust-reviewer
+    notes: "Security-critical. Three known zeroization gaps (PBKDF2-derived key, signing nonces, keystore password)."
+    ripples_to:
+      - { repo: subfrost-app, surface: "cross-chain bridge flow", note: "Signing-protocol changes can break bridge UX in the frontend; signed-PSBT format changes are the canonical example." }
+      - { repo: subfrost-mobile, surface: "cross-chain bridge flow", note: "Same as subfrost-app; mobile consumes the same signed-PSBT formats." }
 
   subfrost-app:
     upstream: https://github.com/subfrost/subfrost-app
     clone_path: ~/reference/subfrost-app
     default_branch: develop
     last_known_good: c30de6c33823e2755f81c92534b658ee0a909f0a
+    layer: ux
     role: nextjs-frontend
     visibility: private
     languages: [typescript]
@@ -63,66 +125,20 @@ repos:
       - height-poller-frontend
       - ts-sdk-alkanes-execute
       - protostone-cellpack-edicts
+      - pattern-conformance
       - stack-as-codebase
     reviewers:
       - subfrost-frontend-reviewer
       - bitcoin-security-reviewer
       - typescript-reviewer
-    cross_repo_deps:
-      consumes:
-        - { repo: alkanes-rs, surface: "ts-sdk", note: "alkanesExecuteWithStrings, inputRequirements; aliased WASM files must be synced" }
-      version_pins:
-        - { repo: alkanes-rs, key: "@alkanes/ts-sdk", source: "package.json", reconciliation: "after every alkanes-rs ts-sdk bump, re-sync lib/oyl/alkanes/" }
-
-  metashrew:
-    upstream: https://github.com/kungfuflex/metashrew
-    clone_path: ~/reference/metashrew
-    default_branch: master
-    last_known_good: 31c4198c578c1642b02f7ca6cd662612e7a8079c
-    role: wasm-indexing-runtime
-    visibility: public
-    languages: [rust]
-    patterns_doc: docs/patterns/metashrew.md
-    cwd_skills:
-      - alkanes-onboarding
-      - metashrew-indexer-patterns
-      - wasm-build-pipeline
-      - stack-as-codebase
-    reviewers:
-      - metashrew-indexer-reviewer
-      - wasm-contract-auditor
-      - rust-reviewer
-    notes: "No develop branch exists. master is active."
-    cross_repo_deps:
-      consumed_by:
-        - { repo: alkanes-rs, surface: "host functions + runtime ABI" }
-
-  subzero-rs:
-    upstream: https://github.com/subfrost/subzero-rs
-    clone_path: ~/reference/subzero-rs
-    default_branch: develop
-    last_known_good: 6e8884cad2499124926814d758ce643dd6b188e9
-    role: threshold-signing-os
-    visibility: private
-    languages: [rust]
-    patterns_doc: docs/patterns/subzero-rs.md
-    cwd_skills:
-      - alkanes-onboarding
-      - frost-roast-signing-flow
-      - stack-as-codebase
-    reviewers:
-      - subzero-frost-reviewer
-      - rust-reviewer
-    notes: "Security-critical. Three known zeroization gaps (PBKDF2-derived key, signing nonces, keystore password)."
-    cross_repo_deps:
-      consumes: []  # frtun integration with signing still pending
-      consumed_by: []  # signing service consumed by off-stack bridge programs
+    notes: "Locally-bounded changes. Reads from foundational APIs but cannot break them."
 
   subfrost-mobile:
     upstream: https://github.com/subfrost/subfrost-mobile
     clone_path: ~/reference/subfrost-mobile
     default_branch: main
     last_known_good: 11572d587ef31d8acf188b3791a9acc1afd54cba
+    layer: ux
     role: cross-platform-wallet
     visibility: private
     languages: [rust, kotlin, swift]
@@ -131,6 +147,7 @@ repos:
       - alkanes-onboarding
       - uniffi-checksum-survival
       - browser-wallet-safety
+      - pattern-conformance
       - stack-as-codebase
     reviewers:
       - subfrost-mobile-ffi-reviewer
@@ -138,14 +155,11 @@ repos:
       - swift-reviewer
       - kotlin-reviewer
       - rust-reviewer
-    notes: "No develop branch. main is active."
-    cross_repo_deps:
-      consumes:
-        - { repo: alkanes-rs, surface: "Rust crates", note: "shared core links to alkanes-rs types via Cargo workspace dependencies" }
-      uniffi_invariant:
-        rule: "Kotlin/Swift bindings MUST be regenerated from a DEBUG cdylib (unstripped). Generating from release strips metadata → runtime checksum mismatch crash."
+    notes: "No develop branch. main is active. Locally-bounded changes."
 
-# Cross-cutting invariants — protocol-level rules that span repos
+# Cross-cutting invariants — protocol-level rules that span repos.
+# These are CONCEPTUAL rules (not coupling). They apply wherever the
+# named pattern appears, regardless of which repo it lives in.
 invariants:
   - id: incoming-alkanes-routing
     statement: "Edicts routing tokens to a contract as incomingAlkanes MUST use output: <vout of OP_RETURN protostone> (typically 1)."
@@ -213,7 +227,7 @@ external_assets:
     clone_path: ~/reference/alkanes-mcp
     type: mcp-server
     surface: "exposes 6 alkanes repos as tools (list_files, search_code, get_function_details, list_classes, get_api_documentation)"
-    registration: "mcp-configs/mcp-servers.json (registered in subfrost-ops v0.2.0)"
+    registration: "mcp-configs/mcp-servers.json"
 
   - id: alkanes-flashcards
     upstream: https://github.com/0xcasuwu/alkanes-flashcards
@@ -224,4 +238,4 @@ external_assets:
       - "lib/seed-data.ts"
       - "lib/seed-data-v2.ts"
       - "lib/seed-data-v3.ts"
-    registration: "/flashcard-lookup command (registered in subfrost-ops v0.2.0)"
+    registration: "/flashcard-lookup command"

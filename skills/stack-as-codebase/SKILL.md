@@ -1,73 +1,96 @@
 ---
 name: stack-as-codebase
-description: The integrated-codebase mental model for subfrost-ops. The 5 repos (alkanes-rs, subfrost-app, metashrew, subzero-rs, subfrost-mobile) are ONE system with seams; treat them as such. Load this at the start of any non-trivial change.
+description: The integrated-codebase mental model for subfrost-ops. The 5 repos (alkanes-rs, metashrew, subzero-rs, subfrost-app, subfrost-mobile) are conceptually integrated but NOT mechanically coupled. Impact flows directionally — foundational repos ripple UP to UX, never the reverse. Load this at the start of any non-trivial change.
 origin: subfrost-ops
 ---
 
 # Stack-as-Codebase
 
-The five repos look independent but are wired together. A change in repo A frequently breaks repo B silently because no compiler, no CI, no GitHub check spans both. The harness has to compensate.
+The 5 repos are part of a continuous whole, but they are mutually exclusive in regards to one working and another breaking. There is no shared build, no enforced version pins, no compile-time imports across repo boundaries beyond what each repo declares for its own work. **A change in one does not break-build another.**
+
+What IS true: foundational repos publish APIs and protocols that UX repos consume. Changes to foundational APIs *often* matter to UX consumers, in ways the LLM should surmise from the change description and the pattern catalog — not from a mechanical dependency graph.
 
 ## When to use
-- Starting ANY change that's not pure-local (e.g. a typo fix in a comment is pure-local; almost everything else isn't)
-- Reviewing a PR — confirm the author considered downstream consumers
-- Debugging an integration bug that "worked yesterday"
+- Starting any non-trivial change in any of the 5 repos
+- Reasoning about whether a change merits cross-repo thinking
+- Reviewing a PR — confirm the author considered the right scope
 
-## The mental model
+## The layered model
 
-### The five repos are one system
-
+### Foundational layer (publishers)
 ```
-    +-------------+       +----------------+       +------------------+
-    | metashrew   |◄──────| alkanes-rs     |──────►| subfrost-app     |
-    | (runtime)   |       | (indexer +     |       | (Next.js +       |
-    |             |       |  ts-sdk)       |       |  wallet adapter) |
-    +-------------+       +----------------+       +------------------+
-                                 ▲                          ▲
-                                 │ shared types             │
-                                 │                          │ same PSBT format
-                          +---------------+          +-------------------+
-                          | subfrost-mobile|          | subzero-rs        |
-                          | (uniffi core +|          | (FROST + frtun    |
-                          |  Compose/SwiftUI)|       |  threshold signer)|
-                          +---------------+          +-------------------+
+alkanes-rs    →  Rust indexer + ts-sdk
+metashrew     →  WASM indexing runtime
+subzero-rs    →  FROST/ROAST threshold signing + frtun overlay
+```
+These publish ABIs, protocols, and consensus-critical logic. Their default branches advance independently. When they change, downstream MAY need to adapt.
+
+### UX layer (consumers)
+```
+subfrost-app    →  Next.js frontend
+subfrost-mobile →  Compose (Android) + SwiftUI (iOS) + uniffi Rust core
+```
+These consume foundational APIs. Their changes are locally bounded — they cannot break the foundational layer.
+
+### Impact direction (always downward)
+```
++----------------+        +----------------+        +-------------+
+| alkanes-rs     |        | metashrew      |        | subzero-rs  |
+| (foundational) |        | (foundational) |        | (foundational)|
++----------------+        +----------------+        +-------------+
+        │                          │                        │
+        │ ts-sdk, types            │ runtime ABI            │ signing protocol
+        ▼                          ▼                        ▼
++----------------+        +----------------+
+| subfrost-app   |        | subfrost-mobile|
+| (ux)           |        | (ux)           |
++----------------+        +----------------+
 ```
 
-### The seams (where breakage hides)
-1. **subfrost-app → alkanes-rs/ts-sdk**: aliased WASM files in `next.config.mjs`. A ts-sdk bump that doesn't re-sync the WASM files = runtime mismatch.
-2. **subfrost-app → contract opcodes**: `FACTORY_OPCODES`/`POOL_OPCODES` constants in subfrost-app must match the contract's `MessageDispatch` derive. Renaming opcode 13 in the contract without updating the frontend = silently wrong dispatch.
-3. **subfrost-mobile → subfrost-mobile-ffi (uniffi)**: regenerate bindings from DEBUG .so or crash on first FFI call. See `skills/uniffi-checksum-survival`.
-4. **alkanes-rs → metashrew**: runtime ABI version (SPECIFICATION.md v9.0.0). Host-import signature changes are consensus-critical.
-5. **subzero-rs → frontend/mobile**: signed PSBT format must match what subfrost-app and subfrost-mobile can submit. Wrap-blob versioning must match what mobile's StrongBox/SE can unwrap.
-6. **Fork heights (V220_FORK_HEIGHT etc.)**: contracts must respect; clients must know. A client built without awareness of the fork dispatches differently below vs above the height.
+No arrows point upward. UX changes never threaten foundational repos.
 
-## The verification protocol (always run before claiming "done")
+## Questions to surmise (not a rigid protocol)
 
-1. **Read `stack/manifest.yaml`** — does the change touch any `cross_repo_deps` or `invariants`?
-2. **Run the `stack-preflight` agent** with a description of the change
-3. **Run `node scripts/stack/freshness.js`** to confirm working trees aren't drifted from manifest pins
-4. **For frontend / SDK changes**: grep both repos for the symbol you're modifying; verify every caller
-5. **For contract changes**: confirm at least one canonical test (e.g. `output:1` edict routing pattern in boiler) exercises the modified opcode
-6. **For mobile / FFI changes**: confirm `tests/uniffi_bindings_in_sync.rs` was re-run after regenerating bindings from a debug .so
-7. **For runtime / metashrew changes**: confirm a reorg test covers the rollback path
+**If you're in a foundational repo:**
+- What is this change publishing or modifying? (a function signature? a message format? a runtime behavior? a consensus rule?)
+- Who consumes the area I'm modifying? (the manifest's `ripples_to` block names the UX repos and surfaces)
+- What assumptions might consumers have made that this change invalidates?
+- Is there a canonical pattern (`skills/pattern-conformance`) for this kind of change I should mirror?
+- Is there a consensus-critical milestone (`fork_heights`) the change must respect?
 
-## The fail-shut principle
+**If you're in a UX repo:**
+- What feature/bug is this addressing locally?
+- Which canonical patterns from `skills/pattern-conformance` apply? (almost always at least one — HeightPoller, browser-wallet safety, two-protostone, etc.)
+- Does this change my repo's local consumers? (tests, sibling hooks, shared state)
+- Am I correctly consuming the foundational APIs at the version they expose, or did I drift into using newer features the pinned SDK doesn't support?
 
-When in doubt, **stop and ask** rather than assume the seam is fine. The cost of a silently broken PR is much higher than the cost of a clarifying message.
+## When in doubt
+Ask the user. The harness gives context; the user (and you, the LLM) reason about the right scope.
 
-Examples of the right "stop and ask":
-- "I'm about to bump @alkanes/ts-sdk in subfrost-app — should I also re-sync `lib/oyl/alkanes/` WASM files in the same PR?"
-- "Renaming opcode 13 to 113 — should I update subfrost-app's FACTORY_OPCODES in a coordinated PR or stage them?"
-- "Changing the uniffi error type for `FfiError::Cancelled` — should I bump the Kotlin/Swift handlers in the same commit?"
+## Examples
 
-## How comprehension grows over time
+### Example 1 — Foundational change with downstream implications
+**Change**: "Refactor cellpack serialization in alkanes-rs to support a new opcode encoding."
+**Layer**: foundational (alkanes-rs).
+**Surmise**: ts-sdk consumers (subfrost-app's mutation hooks; subfrost-mobile if it builds cellpacks Rust-side) likely call into the serialization. They may need to re-import or re-sync. The pattern-conformance entry for "two-protostone message format" applies. Reasonable to coordinate a downstream PR in subfrost-app at the same time the SDK ships.
 
-`continuous-learning-v2` captures observations from every tool call into project-scoped instinct files. The `observe-stack` hook adds a `stack:subfrost-ops` tag whenever the cwd is one of the 5 stack repos. When you run `/evolve`, those tagged observations are clustered into stack-wide skills rather than project-local ones — so a pattern observed in subfrost-app naturally becomes available when working in alkanes-rs.
+### Example 2 — Foundational change with no downstream impact
+**Change**: "Optimize the internal RocksDB iterator in metashrew."
+**Layer**: foundational (metashrew).
+**Surmise**: this is an internal performance tweak — the host-function ABI doesn't change. alkanes-rs doesn't need to do anything. No downstream ripples.
 
-Run `/instinct-status` periodically to see what's accumulating. Run `/promote` to lift cross-project patterns into the global skill set.
+### Example 3 — UX change, locally bounded
+**Change**: "Add a new dark-mode toggle to subfrost-app settings."
+**Layer**: ux.
+**Surmise**: pure UI; no foundational consumption surface touched. Local validation only — typecheck, lint, test the toggle, ship.
+
+### Example 4 — UX change that touches a foundational API
+**Change**: "Use a new ts-sdk function (introduced in alkanes-rs v2.2.0) for fee estimation in subfrost-app."
+**Layer**: ux (still — the change is in subfrost-app).
+**Surmise**: foundational repo unaffected. But you need to confirm subfrost-app's pinned ts-sdk version actually exports the new function. If not, you're either bumping the pin or backporting the function locally. The `tsSdkPinReport` from `/stack-snapshot` will show you the pinned vs latest versions.
 
 ## Reference
-- `stack/manifest.yaml`
-- `stack/SNAPSHOT.md` (regenerated by `node scripts/stack/snapshot.js`)
-- `agents/stack-preflight.md`
-- All `docs/patterns/*.md`
+- `stack/manifest.yaml` — layers, invariants, ripples_to
+- `docs/LAYER-MODEL.md` — permanent reference doc on the model
+- `skills/pattern-conformance/SKILL.md` — the 17-pattern canonical catalog
+- `agents/stack-preflight.md` — returns a structured context brief for a specific change

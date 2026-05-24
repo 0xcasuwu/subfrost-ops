@@ -59,10 +59,23 @@ paths:
 - RPC errors classified transient vs permanent; sanitize URLs before logging
 
 ## Auditing
-- Every change to a contract opcode or its dispatcher requires a `alkanes-protocol-reviewer` agent pass
-- Every change to a wallet-signing path requires a `bitcoin-security-reviewer` agent pass
-- Every change to subzero-rs requires a `subzero-frost-reviewer` agent pass
-- Every change to subfrost-mobile FFI requires a `subfrost-mobile-ffi-reviewer` agent pass
+
+The repos are layered (see `docs/LAYER-MODEL.md`). Required reviews differ by layer.
+
+### Foundational-layer changes (alkanes-rs, metashrew, subzero-rs)
+These publish APIs/protocols; changes may ripple to UX consumers. Required passes:
+- Contract opcode or dispatcher changes → `alkanes-protocol-reviewer`
+- Indexer logic or runtime-ABI changes → `metashrew-indexer-reviewer`
+- subzero-rs changes → `subzero-frost-reviewer`
+- New WASM contract or runtime-import surface → `wasm-contract-auditor`
+- For non-trivial changes, run the `stack-preflight` agent to get a downstream-ripple context brief BEFORE merging
+
+### UX-layer changes (subfrost-app, subfrost-mobile)
+These consume stable foundational APIs; changes are locally bounded. Required passes:
+- subfrost-app mutation/hook/wallet-adapter changes → `subfrost-frontend-reviewer`
+- Any wallet-signing path → `bitcoin-security-reviewer`
+- subfrost-mobile FFI/uniffi changes → `subfrost-mobile-ffi-reviewer`
+- **No upstream-reviewer pass required** — UX changes cannot break foundational repos. Only run `bitcoin-security-reviewer` from the foundational set when the UX change touches Bitcoin transaction construction.
 
 ## Forbidden
 - Hardcoded mainnet AlkaneIds in regtest-only paths

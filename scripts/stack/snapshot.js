@@ -49,7 +49,12 @@ function parseManifest(text) {
   return { repos };
 }
 
-function tsSdkVersionSkew(repos) {
+// Informational pin report — not "skew" or "drift". subfrost-app pins
+// ts-sdk at whatever version it's tested against; alkanes-rs ts-sdk
+// advances independently. Either being ahead of the other is a fact,
+// not a problem. The LLM decides whether the pinned version supports
+// the feature the user wants to use.
+function tsSdkPinReport(repos) {
   const subfrostApp = expandHome(repos['subfrost-app']?.clone_path);
   const alkanesRs = expandHome(repos['alkanes-rs']?.clone_path);
   if (!subfrostApp || !alkanesRs) return null;
@@ -60,7 +65,7 @@ function tsSdkVersionSkew(repos) {
     const pinned = pkg.dependencies?.['@alkanes/ts-sdk'] || pkg.devDependencies?.['@alkanes/ts-sdk'];
     const sdkPkg = JSON.parse(fs.readFileSync(sdkPkgPath, 'utf8'));
     const local = sdkPkg.version;
-    return { pinned, local, drift: pinned && local && !pinned.includes(local) };
+    return { pinned, local };
   } catch { return null; }
 }
 
@@ -97,14 +102,15 @@ function main() {
     out.push(`### ${name}`, '```', log || '(no log)', '```', '');
   }
 
-  out.push('## Version skew', '');
-  const skew = tsSdkVersionSkew(manifest.repos);
-  if (skew) {
-    out.push(`- subfrost-app pinned \`@alkanes/ts-sdk\`: \`${skew.pinned}\``);
-    out.push(`- alkanes-rs ts-sdk local version: \`${skew.local}\``);
-    out.push(`- drift: **${skew.drift ? 'YES — re-sync lib/oyl/alkanes/ WASM files in subfrost-app' : 'no'}**`);
+  out.push('## ts-sdk pin report', '');
+  out.push('Informational only. subfrost-app pins ts-sdk at a tested version; alkanes-rs ts-sdk advances independently. Either being ahead is not a "drift" — update the pin only if you intend to consume newer SDK features.');
+  out.push('');
+  const pinReport = tsSdkPinReport(manifest.repos);
+  if (pinReport) {
+    out.push(`- subfrost-app pin: \`${pinReport.pinned}\``);
+    out.push(`- alkanes-rs ts-sdk current: \`${pinReport.local}\``);
   } else {
-    out.push('- skew check unavailable (one of the repos missing package.json)');
+    out.push('- pin report unavailable (one of the repos missing package.json)');
   }
 
   out.push('', '## Fork heights in scope', '');

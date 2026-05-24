@@ -2,6 +2,8 @@
 
 > Drop this file at the root of `metashrew` to pull in the subfrost-ops domain pack.
 
+**Layer**: foundational. This repo publishes the WASM runtime ABI that **alkanes-rs** builds against. Host-function or ABI changes ripple to alkanes-rs first, then through it to the UX layer. For non-trivial changes, run the `stack-preflight` agent. See `docs/LAYER-MODEL.md`.
+
 The WASM-powered Bitcoin indexing framework. Runtime + storage + sync engine. Indexers (like `alkanes-rs`) plug in as WASM modules.
 
 ## Pre-work skills to load
