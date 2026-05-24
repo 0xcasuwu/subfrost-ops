@@ -1,4 +1,4 @@
-﻿# Alkanes-rs Domain Patterns & Architecture
+# Alkanes-rs Domain Patterns & Architecture
 
 > LLM-focused guide to the canonical Rust Alkanes metaprotocol implementation (kungfuflex/alkanes-rs, develop branch)
 
@@ -20,7 +20,8 @@
 The repository is a Cargo workspace with two major hierarchies:
 
 #### crates/ — Core Infrastructure
-- **alkanes** (crates/alkanes/Cargo.toml:1-90): The WASM indexer itself. Compiles as cdylib + lib. Ingests Bitcoin blocks, indexes alkanes, executes contract code.
+- **alkanes** (crates/alkanes/Cargo.toml:1-90): The WASM indexer itself. Compiles as cdylib + 
+lib. Ingests Bitcoin blocks, indexes alkanes, executes contract code.
 - **alkanes-runtime** (crates/alkanes-runtime/Cargo.toml:1-25): Runtime traits and macros (declare_alkane!, AlkaneResponder). Used by all contract implementations.
 - **alkanes-support** (crates/alkanes-support/lib.rs:1-139): Shared types: AlkaneId, AlkaneTransfer, Cellpack, Protostone, ExtendedCallResponse, storage/response marshaling.
 - **alkanes-macros** (crates/alkanes-macros/lib.rs:1-250+): Derives MessageDispatch for opcode-to-method routing.
@@ -59,8 +60,10 @@ For each transaction with Runestone:
 | Crate | Purpose | Key Files |
 |-------|---------|-----------|
 | lkanes | WASM indexer, view functions, VM setup | lib.rs, m/runtime.rs, iew.rs |
-| lkanes-runtime | Contract trait + macros | declare_alkane!, untime.rs, message.rs |
-| lkanes-support | Types + serialization | id.rs, cellpack.rs, esponse.rs, parcel.rs |
+| lkanes-runtime | Contract trait + macros | declare_alkane!, 
+untime.rs, message.rs |
+| lkanes-support | Types + serialization | id.rs, cellpack.rs, 
+esponse.rs, parcel.rs |
 | protorune | Token ledger + message routing | protostone.rs, message.rs, lib.rs |
 | metashrew-core | KV store, atomic pointers | index_pointer.rs |
 
@@ -183,7 +186,7 @@ Flattening for WASM:
 - scripts/build-std.sh (not shown here)
 
 **Process**:
-1. Each aalkanes-std-* contract compiles to WASM via cargo build --target wasm32-unknown-unknown --release.
+1. Each alkanes-std-* contract compiles to WASM via cargo build --target wasm32-unknown-unknown --release.
 2. Pre-built WASM stored in crates/alkanes/src/precompiled/*.rs (hardcoded).
 3. At indexing time, WASM is loaded and instantiated via wasmi (crates/alkanes/vm/instance.rs).
 
