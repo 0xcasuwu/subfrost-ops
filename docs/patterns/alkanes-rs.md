@@ -29,12 +29,12 @@ The repository is a Cargo workspace with two major hierarchies:
 
 #### lkanes/ — Standard Contract Library
 Pre-built contracts deployed to genesis block:
-- lkanes-std-genesis-alkane: Root minting contract
-- lkanes-std-test: Test harness (opcode 0–110, demonstrations)
-- lkanes-std-auth-token: Token factory with auth
-- lkanes-std-owned-token, lkanes-std-proxy, lkanes-std-upgradeable: Utilities
+- alkanes-std-genesis-alkane: Root minting contract
+- alkanes-std-test: Test harness (opcode 0–110, demonstrations)
+- alkanes-std-auth-token: Token factory with auth
+- alkanes-std-owned-token, alkanes-std-proxy, alkanes-std-upgradeable: Utilities
 
-#### 	s-sdk/ — TypeScript Client
+#### ts-sdk/ — TypeScript Client
 - src/provider/: Bitcoin RPC + alkanes indexer queries
 - src/client/: AlkanesClient (provider + signer pattern, ethers.js-like)
 - Tests: alkanes-transfer integration tests
@@ -183,7 +183,7 @@ Flattening for WASM:
 - scripts/build-std.sh (not shown here)
 
 **Process**:
-1. Each alkanes-std-* contract compiles to WASM via cargo build --target wasm32-unknown-unknown --release.
+1. Each aalkanes-std-* contract compiles to WASM via cargo build --target wasm32-unknown-unknown --release.
 2. Pre-built WASM stored in crates/alkanes/src/precompiled/*.rs (hardcoded).
 3. At indexing time, WASM is loaded and instantiated via wasmi (crates/alkanes/vm/instance.rs).
 
@@ -373,3 +373,26 @@ Assert no rounding or precision loss.
 **Last Updated**: 2025-05-23  
 **Alkanes-rs Branch**: develop  
 **Repository**: https://github.com/kungfuflex/alkanes-rs
+
+---
+
+## Recent develop additions (post-v2.2.0, captured 2026-05-23 @ ee5c2264)
+
+Doc body above was originally drafted against an older develop SHA (`14a5493f`). The following material additions landed since and aren't reflected above. See `DELTA-alkanes-rs.md` for the full delta report.
+
+### DIESEL native precompile (`feat(v220)`, commit 2081d372)
+Rust-native fast path that bypasses wasmi for the DIESEL minting contract (opcodes 77, 99, 100, 101). Handles ~99% of block mints today.
+- File: `crates/alkanes/src/precompile_diesel.rs`
+- Dispatch: `src/vm/utils.rs::run_after_special()`
+- Consensus check: `tests::diesel_sidebyside()` validates byte-equality with wasmi path
+- Activation: feature flag `diesel-precompile` AND block height ≥ `V220_FORK_HEIGHT` (commit 965b55f0). Soft fork — contracts must respect.
+
+### Fastpath shadow writes (`v3(fastpath)`, commit c2b18c26)
+`/upgrade_initialized` and related keys now direct-write in shadow + sidebyside setups. Bypasses the atomic-pointer storage model on the hot path. Affects three-phase init narrative — verify which paths still go through atomic pointers.
+
+### Mempool-aware UTXO selection (commits ce0641dc, 8bd2cdef, 08536fbd)
+New `PendingTxStore` trait. ts-sdk gains `mempool_indexer?: boolean` on `AlkanesExecuteBaseParams`. When spending pending UTXOs that may carry alkanes, enable it so inscription state is traced through parent transactions.
+
+### Citations to disregard from earlier draft
+- `AlkanesRuntimeContext::from_parcel_and_cellpack()` (cited above near line 52) — does not exist on develop. Use `AlkaneResponder::context()` (`crates/alkanes-runtime/src/runtime.rs:184-191`) instead.
+- `Protostone::process_message()` (cited above near line 51) — does not exist on develop. Message handling is distributed across `to_integers()`, `from_runestone()`, and `decipher()` in `crates/protorune-support/src/protostone.rs`.

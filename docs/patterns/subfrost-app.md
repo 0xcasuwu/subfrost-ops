@@ -64,3 +64,36 @@ Genesis alkane ids (2:0 DIESEL, 32:0 frBTC) are identical on mainnet and regtest
 
 ## Recently active branches (signal for current pain points)
 ts-sdk-perf phases 1-9, fix/peppy-gizmo-three-bugs, fix/devnet-routing-and-boot-completion, feat/wallet-input-builder, perf/mainnet-optimization, feat/okx-wallet-integration, fix/unwrap-cellpack-and-dust-output, feat/single-tx-frbtc-swap, kungfuflex/demo-gate-release.
+
+---
+
+## Recent develop additions (captured 2026-05-23 @ c30de6c3)
+
+Doc body above was originally drafted against an older develop SHA (`6658302d`). The patterns above are all still correct; what follows is additive. See `DELTA-subfrost-app.md` for the full delta.
+
+### Multi-address-type support (commit 87aa1e97, `feat(wallet): allow any address type — drop taproot-only assumption`)
+The earlier doc's implicit assumption that all addresses are taproot is no longer true. Wallets now expose:
+- Taproot (`bc1p...`, `bcrt1p...`) — both browser and keystore
+- Segwit (`bc1q...`, `bcrt1q...`) — browser wallets (Xverse, OKX, UniSat dual-address)
+- Legacy (`3...`, `2...`) — Xverse only
+
+Mutations detect the active address type per network. See `context/WalletContext.tsx` for the detection logic.
+
+### Extended protocols (FIRE / Bridges / Fujin / Gauge)
+18 new mutation hooks on top of the 6 core AMM mutations:
+- `hooks/fire/*` — 9 FIRE staking / bonding / redemption hooks
+- `hooks/useBridge*.ts` — 3 cross-chain bridge hooks
+- `hooks/useFujin*.ts` — 3 Fujin futures hooks
+- `hooks/useGauge*.ts` — 3 gauge / LP staking hooks
+
+All follow the two-protostone pattern via `inputRequirements`. Same rules from section 1-7 apply.
+
+### New wallet adapters
+- `lib/wallet/SubfrostMobileAdapter.ts` — native Subfrost mobile app
+- `lib/wallet/MobileJsWalletAdapter.ts` — JS-to-mobile bridge
+
+### Wallet-state cache layer
+`feat(cache-system): reconstruct /api/wallet-state + harness` plus `feat(wallet-state): port pending-tx chain-spend adjustment`. Centralized wallet state with mempool-aware adjustments.
+
+### Doc reference correction
+`WalletContext.tsx:1720-1787` line range is stale (file grew). The Xverse/UniSat direct-signing bypasses still exist; reference them by export (`signWithXverse()`, `signWithOyl()`) instead of line number.
