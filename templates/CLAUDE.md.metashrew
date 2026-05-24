@@ -1,0 +1,32 @@
+# CLAUDE.md — metashrew
+
+> Drop this file at the root of `metashrew` to pull in the subfrost-ops domain pack.
+
+**Layer**: foundational. This repo publishes the WASM runtime ABI that **alkanes-rs** builds against. Host-function or ABI changes ripple to alkanes-rs first, then through it to the UX layer. For non-trivial changes, run the `stack-preflight` agent. See `docs/LAYER-MODEL.md`.
+
+The WASM-powered Bitcoin indexing framework. Runtime + storage + sync engine. Indexers (like `alkanes-rs`) plug in as WASM modules.
+
+## Pre-work skills to load
+- `alkanes-onboarding` — context for downstream indexers
+- `metashrew-indexer-patterns` — host functions, `_start`, view fns, RMW hazard
+- `wasm-build-pipeline` — module size, allocator, panic handler
+
+## Reviewers to invoke
+- `metashrew-indexer-reviewer` for runtime ABI changes
+- `wasm-contract-auditor` for any indexer module touching the host import surface
+- `rust-reviewer` (built-in) for general Rust hygiene
+
+## Rules pack
+- `rules/alkanes/*` (testing.md has reorg-test requirements)
+- `rules/rust/*`
+- `rules/common/*`
+
+## Key files
+- SPECIFICATION.md — runtime ABI contract
+- `crates/metashrew-runtime/src/runtime.rs` — `MetashrewRuntime`
+- `crates/metashrew-runtime/src/smt.rs` — SMT state commitment
+- `crates/rockshrew-sync/src/sync.rs` — sync + reorg
+- `crates/rockshrew-mono/src/main.rs` — integrated server
+
+## Reference
+- `~/reference/ECC/docs/patterns/metashrew.md` — distilled architecture + pitfalls

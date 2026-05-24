@@ -1,8 +1,9 @@
 {
   "version": "2.1",
   "observer": {
-    "enabled": false,
+    "enabled": true,
     "run_interval_minutes": 5,
     "min_observations_to_analyze": 20
-  }
+  },
+  "subfrost_ops_notes": "Observer enabled by default in the subfrost-ops fork so Alkanes-stack patterns are captured per-project from day one. Project scoping (via git remote hash) keeps alkanes-rs / subfrost-app / metashrew / subzero-rs / subfrost-mobile instincts isolated. Use /evolve to cluster captured instincts into skills/commands; /promote to lift cross-project patterns to global scope. See docs/patterns/INVENTORY.md section 'Continuous-learning-v2'."
 }

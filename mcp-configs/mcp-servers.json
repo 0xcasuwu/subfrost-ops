@@ -1,5 +1,13 @@
 {
   "mcpServers": {
+    "alkanes-mcp": {
+      "command": "node",
+      "args": ["~/reference/alkanes-mcp/dist/index.js"],
+      "env": {
+        "ALKANES_MCP_REPOS_ROOT": "~/reference"
+      },
+      "description": "Cross-repo code-analysis MCP for the subfrost-ops stack. Exposes alkanes-rs, subfrost, oyl-sdk, sandshrew-sdk, alkanes, alkane-factory as searchable resources. Tools: list_files, get_file_content, search_code, list_functions, get_function_details, search_functions, list_classes, get_class_details, get_api_documentation, get_function_interfaces, list_repositories, get_repository_info, analyze_repository."
+    },
     "jira": {
       "command": "uvx",
       "args": ["mcp-atlassian==0.21.0"],

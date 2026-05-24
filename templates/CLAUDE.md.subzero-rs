@@ -1,0 +1,37 @@
+# CLAUDE.md — subzero-rs (SECURITY-CRITICAL)
+
+> Drop this file at the root of `subzero-rs` to pull in the subfrost-ops domain pack.
+
+**Layer**: foundational. This repo publishes the signing protocol consumed by cross-chain bridge flows in **subfrost-app** and **subfrost-mobile**. Signing-protocol or PSBT-format changes can break bridge UX without breaking either repo's build. For non-trivial changes, run the `stack-preflight` agent. See `docs/LAYER-MODEL.md`.
+
+Threshold signing OS for Bitcoin. FROST + ROAST + frtun (quantum-safe overlay network). Bridge signer programs for Bitcoin, Ethereum, Zcash.
+
+## Cardinal rule
+This codebase signs joint transactions on behalf of real funds. A subtle bug here = key loss, forgery, or signing-set denial of service. Crypto-engineer rigor; assume every change can break consensus among the signing set.
+
+## Pre-work skills to load
+- `alkanes-onboarding` — broader context
+- `frost-roast-signing-flow` — DKG + signing rounds + health tracker semantics
+
+## Reviewers to invoke (MANDATORY for any change)
+- `subzero-frost-reviewer` — zeroization, async-cancel, threshold validation, constant-time, byzantine handling
+- `rust-reviewer` (built-in) for general Rust hygiene
+
+## Rules pack
+- `rules/alkanes/security.md` — funds-at-risk checklist (Signing section)
+- `rules/rust/security.md`
+- `rules/common/security.md`
+
+## Known gaps (audit-flagged)
+- `crates/subzero-keystore/src/lib.rs:88-92` — PBKDF2-derived key not zeroized (bare array)
+- Signing nonces missing explicit `Drop` zeroization
+- No exponential backoff or peer-liveness detection on DKG hard timeouts
+
+## Tests
+```bash
+cargo test                                      # unit + integration
+cargo test --features in-memory-network         # distributed simulation
+```
+
+## Reference
+- `~/reference/ECC/docs/patterns/subzero-rs.md`
