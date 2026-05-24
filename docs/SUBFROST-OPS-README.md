@@ -23,6 +23,46 @@ This pack consolidates that knowledge into shape Claude Code natively understand
 | Pattern docs | 7 | `docs/patterns/{INVENTORY, alkanes-rs, subfrost-app, metashrew, subzero-rs, subfrost-mobile, existing-knowledge-assets, contracts-frost-boiler-fujin}.md` |
 | Continuous-learning-v2 | enabled by default | so every Alkanes-stack session captures instincts from day one |
 
+## v0.2.0 additions — integrated-codebase mode
+
+The v0.1.0 surface treats each repo as a destination for the harness. v0.2.0 makes the harness *aware that the five repos are one system*.
+
+| Component | What it does |
+|---|---|
+| `stack/manifest.yaml` | Single source of truth — for each repo: clone path, default branch, `last_known_good` SHA, cross-repo deps, fork heights, version pins. Also encodes 7 cross-cutting invariants (incoming-alkanes-routing, receipt-not-caller, no-symbolic-addresses-on-browser-wallets, uniffi-debug-so-bindings, factory-router-not-pool-direct, three-phase-init-guard, zeroize-secret-material). |
+| `scripts/stack/freshness.js` | Auto-invoked at SessionStart. Compares each local HEAD against manifest pins AND upstream develop tips. Surfaces MANIFEST-DRIFT and UPSTREAM-DRIFT loudly so the LLM doesn't reason against stale code. Solves the exact failure mode the v0.1.0 pattern-mining hit. |
+| `scripts/stack/snapshot.js` | Generates `stack/SNAPSHOT.md` — recent commits per repo, version skew between `subfrost-app`'s pinned `@alkanes/ts-sdk` and the live alkanes-rs ts-sdk, fork-height status. Run before any cross-repo PR. |
+| `agents/stack-preflight.md` | MUST-USE before any change touching a cross-repo seam. Verifies the SDK call exists, the opcode dispatches, the cellpack arity matches, the wallet adapter handles it, the test fixture exists, the binding is in sync. Outputs a verdict + pre-merge checklist. |
+| `skills/stack-as-codebase` | The integrated-codebase mental model. ASCII diagram of the 5 repos and their seams. The 7-step verification protocol. The fail-shut principle. Auto-loaded by the SessionStart hook for every stack repo. |
+| `scripts/hooks/observe-stack.js` | Tags continuous-learning observations with `stack:subfrost-ops` whenever cwd matches a stack repo. `/evolve` then clusters those into stack-wide skills rather than project-local ones — so a pattern observed in subfrost-app naturally becomes available when working in alkanes-rs. |
+| `scripts/stack/flashcard-lookup.js` | Working implementation of `/flashcard-lookup`. Parses the alkanes-flashcards seed-data{,v2,v3}.ts files; filters by topic / deck / max-difficulty; returns matched cards in markdown. |
+| `mcp-configs/mcp-servers.json` | `alkanes-mcp` server registered. Exposes 6 alkanes-stack repos as searchable resources. Enable per-session via `/mcp`. |
+| New slash commands | `/stack-preflight`, `/stack-snapshot`, `/stack-freshness` |
+
+### How comprehension grows
+
+```
+session N in subfrost-app
+   ↓ observation captured by CL2 (project-scoped via git remote hash)
+   ↓ tagged with stack:subfrost-ops by observe-stack hook
+session N+1 in alkanes-rs
+   ↓ /evolve clusters cross-project instincts into a stack-wide skill
+   ↓ next session in ANY stack repo, the new skill is offered
+```
+
+The longer the harness is used across the stack, the better its situational awareness becomes — without polluting other projects' learned patterns.
+
+### Verification protocol (the v0.2.0 contract)
+
+Before claiming a non-local change is "done":
+1. `stack/manifest.yaml` — does the change touch any `cross_repo_deps` or `invariants`?
+2. Run `stack-preflight` agent with the change description
+3. Run `/stack-freshness` to confirm working trees aren't drifted from manifest pins
+4. For frontend/SDK: grep both repos for the symbol; verify every caller
+5. For contracts: confirm a canonical test covers the modified opcode
+6. For mobile/FFI: confirm `tests/uniffi_bindings_in_sync.rs` was re-run
+7. For runtime: confirm a reorg test covers the rollback path
+
 ## Install
 
 ### Option 1 — Claude Code plugin (recommended once published)

@@ -63,6 +63,16 @@ const REPO_SKILL_MAP = [
   },
 ];
 
+function runFreshness() {
+  // Best-effort: invoke stack/freshness.js and capture its output. Fail silent.
+  try {
+    const { execFileSync } = require('child_process');
+    const freshnessScript = path.join(__dirname, '..', 'stack', 'freshness.js');
+    if (!require('fs').existsSync(freshnessScript)) return '';
+    return execFileSync('node', [freshnessScript], { encoding: 'utf8', timeout: 30000, stdio: ['ignore', 'pipe', 'ignore'] });
+  } catch { return ''; }
+}
+
 function main() {
   try {
     const cwd = process.cwd();
@@ -71,16 +81,23 @@ function main() {
       process.exit(0);
       return;
     }
+    // Always load stack-as-codebase first
+    const skills = ['stack-as-codebase', ...hit.skills];
     const lines = [
-      `# Alkanes stack context — ${hit.repo}`,
+      `# Subfrost-ops stack context — ${hit.repo}`,
       ``,
-      `cwd matches a known Alkanes-stack repo. Suggested skills to load before any non-trivial work:`,
+      `cwd matches a known stack repo. The 5 repos (alkanes-rs, subfrost-app, metashrew, subzero-rs, subfrost-mobile) are ONE integrated codebase; treat them as such. Load these skills before any non-trivial change:`,
       ``,
-      ...hit.skills.map(s => `  - \`${s}\``),
+      ...skills.map(s => `  - \`${s}\``),
       ``,
       `Reference: docs/patterns/${hit.repo === 'alkanes-contracts' ? 'contracts-frost-boiler-fujin' : hit.repo}.md`,
-      `Onboarding: skill \`alkanes-onboarding\` lists the pre-work rules and mental model.`,
+      `Verification: run agent \`stack-preflight\` BEFORE any change that touches a cross-repo seam.`,
+      ``,
     ];
+    const freshness = runFreshness();
+    if (freshness) {
+      lines.push('---', '', freshness.trim());
+    }
     process.stdout.write(lines.join('\n') + '\n');
     process.exit(0);
   } catch (e) {

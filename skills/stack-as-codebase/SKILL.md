@@ -1,0 +1,73 @@
+---
+name: stack-as-codebase
+description: The integrated-codebase mental model for subfrost-ops. The 5 repos (alkanes-rs, subfrost-app, metashrew, subzero-rs, subfrost-mobile) are ONE system with seams; treat them as such. Load this at the start of any non-trivial change.
+origin: subfrost-ops
+---
+
+# Stack-as-Codebase
+
+The five repos look independent but are wired together. A change in repo A frequently breaks repo B silently because no compiler, no CI, no GitHub check spans both. The harness has to compensate.
+
+## When to use
+- Starting ANY change that's not pure-local (e.g. a typo fix in a comment is pure-local; almost everything else isn't)
+- Reviewing a PR — confirm the author considered downstream consumers
+- Debugging an integration bug that "worked yesterday"
+
+## The mental model
+
+### The five repos are one system
+
+```
+    +-------------+       +----------------+       +------------------+
+    | metashrew   |◄──────| alkanes-rs     |──────►| subfrost-app     |
+    | (runtime)   |       | (indexer +     |       | (Next.js +       |
+    |             |       |  ts-sdk)       |       |  wallet adapter) |
+    +-------------+       +----------------+       +------------------+
+                                 ▲                          ▲
+                                 │ shared types             │
+                                 │                          │ same PSBT format
+                          +---------------+          +-------------------+
+                          | subfrost-mobile|          | subzero-rs        |
+                          | (uniffi core +|          | (FROST + frtun    |
+                          |  Compose/SwiftUI)|       |  threshold signer)|
+                          +---------------+          +-------------------+
+```
+
+### The seams (where breakage hides)
+1. **subfrost-app → alkanes-rs/ts-sdk**: aliased WASM files in `next.config.mjs`. A ts-sdk bump that doesn't re-sync the WASM files = runtime mismatch.
+2. **subfrost-app → contract opcodes**: `FACTORY_OPCODES`/`POOL_OPCODES` constants in subfrost-app must match the contract's `MessageDispatch` derive. Renaming opcode 13 in the contract without updating the frontend = silently wrong dispatch.
+3. **subfrost-mobile → subfrost-mobile-ffi (uniffi)**: regenerate bindings from DEBUG .so or crash on first FFI call. See `skills/uniffi-checksum-survival`.
+4. **alkanes-rs → metashrew**: runtime ABI version (SPECIFICATION.md v9.0.0). Host-import signature changes are consensus-critical.
+5. **subzero-rs → frontend/mobile**: signed PSBT format must match what subfrost-app and subfrost-mobile can submit. Wrap-blob versioning must match what mobile's StrongBox/SE can unwrap.
+6. **Fork heights (V220_FORK_HEIGHT etc.)**: contracts must respect; clients must know. A client built without awareness of the fork dispatches differently below vs above the height.
+
+## The verification protocol (always run before claiming "done")
+
+1. **Read `stack/manifest.yaml`** — does the change touch any `cross_repo_deps` or `invariants`?
+2. **Run the `stack-preflight` agent** with a description of the change
+3. **Run `node scripts/stack/freshness.js`** to confirm working trees aren't drifted from manifest pins
+4. **For frontend / SDK changes**: grep both repos for the symbol you're modifying; verify every caller
+5. **For contract changes**: confirm at least one canonical test (e.g. `output:1` edict routing pattern in boiler) exercises the modified opcode
+6. **For mobile / FFI changes**: confirm `tests/uniffi_bindings_in_sync.rs` was re-run after regenerating bindings from a debug .so
+7. **For runtime / metashrew changes**: confirm a reorg test covers the rollback path
+
+## The fail-shut principle
+
+When in doubt, **stop and ask** rather than assume the seam is fine. The cost of a silently broken PR is much higher than the cost of a clarifying message.
+
+Examples of the right "stop and ask":
+- "I'm about to bump @alkanes/ts-sdk in subfrost-app — should I also re-sync `lib/oyl/alkanes/` WASM files in the same PR?"
+- "Renaming opcode 13 to 113 — should I update subfrost-app's FACTORY_OPCODES in a coordinated PR or stage them?"
+- "Changing the uniffi error type for `FfiError::Cancelled` — should I bump the Kotlin/Swift handlers in the same commit?"
+
+## How comprehension grows over time
+
+`continuous-learning-v2` captures observations from every tool call into project-scoped instinct files. The `observe-stack` hook adds a `stack:subfrost-ops` tag whenever the cwd is one of the 5 stack repos. When you run `/evolve`, those tagged observations are clustered into stack-wide skills rather than project-local ones — so a pattern observed in subfrost-app naturally becomes available when working in alkanes-rs.
+
+Run `/instinct-status` periodically to see what's accumulating. Run `/promote` to lift cross-project patterns into the global skill set.
+
+## Reference
+- `stack/manifest.yaml`
+- `stack/SNAPSHOT.md` (regenerated by `node scripts/stack/snapshot.js`)
+- `agents/stack-preflight.md`
+- All `docs/patterns/*.md`

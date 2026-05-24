@@ -1,0 +1,227 @@
+---
+# subfrost-ops stack manifest
+#
+# Single source of truth for the 5 repos this harness treats as ONE codebase.
+# Edits here drive: the freshness check, the snapshot generator, the
+# stack-preflight agent's verification list, the SessionStart context-injector,
+# and the cross-repo-navigator agent's repo map.
+#
+# Pinning convention: `last_known_good` is the SHA the patterns docs and
+# skills were last reconciled against. When upstream advances past it, the
+# freshness check flags drift loudly.
+#
+# Refreshed: 2026-05-23
+
+stack_name: subfrost-ops
+stack_id: 0xcasuwu/subfrost
+captured_at: "2026-05-23"
+
+repos:
+  alkanes-rs:
+    upstream: https://github.com/kungfuflex/alkanes-rs
+    clone_path: ~/reference/alkanes-rs
+    default_branch: develop
+    last_known_good: ee5c22649271e2a3c594ac6e850978911bb19dee
+    role: rust-indexer-and-ts-sdk
+    visibility: public
+    languages: [rust, typescript]
+    patterns_doc: docs/patterns/alkanes-rs.md
+    cwd_skills:
+      - alkanes-onboarding
+      - opcode-dispatch
+      - protostone-cellpack-edicts
+      - metashrew-indexer-patterns
+      - ts-sdk-alkanes-execute
+      - wasm-build-pipeline
+      - stack-as-codebase
+    reviewers:
+      - alkanes-protocol-reviewer
+      - metashrew-indexer-reviewer
+      - wasm-contract-auditor
+      - rust-reviewer
+    fork_heights:
+      V220_FORK_HEIGHT: { source: "crates/alkanes/src/precompile_diesel.rs", note: "DIESEL native precompile dispatch; consensus-critical" }
+    cross_repo_deps:
+      consumed_by:
+        - { repo: subfrost-app, surface: "ts-sdk", note: "aliased in next.config.mjs as @alkanes/ts-sdk/wasm → lib/oyl/alkanes/" }
+        - { repo: subfrost-mobile, surface: "rust crates", note: "shared Rust core links against alkanes-rs types" }
+      consumes:
+        - { repo: metashrew, surface: "runtime ABI", note: "alkanes-rs builds as a metashrew indexer module" }
+
+  subfrost-app:
+    upstream: https://github.com/subfrost/subfrost-app
+    clone_path: ~/reference/subfrost-app
+    default_branch: develop
+    last_known_good: c30de6c33823e2755f81c92534b658ee0a909f0a
+    role: nextjs-frontend
+    visibility: private
+    languages: [typescript]
+    patterns_doc: docs/patterns/subfrost-app.md
+    cwd_skills:
+      - alkanes-onboarding
+      - browser-wallet-safety
+      - height-poller-frontend
+      - ts-sdk-alkanes-execute
+      - protostone-cellpack-edicts
+      - stack-as-codebase
+    reviewers:
+      - subfrost-frontend-reviewer
+      - bitcoin-security-reviewer
+      - typescript-reviewer
+    cross_repo_deps:
+      consumes:
+        - { repo: alkanes-rs, surface: "ts-sdk", note: "alkanesExecuteWithStrings, inputRequirements; aliased WASM files must be synced" }
+      version_pins:
+        - { repo: alkanes-rs, key: "@alkanes/ts-sdk", source: "package.json", reconciliation: "after every alkanes-rs ts-sdk bump, re-sync lib/oyl/alkanes/" }
+
+  metashrew:
+    upstream: https://github.com/kungfuflex/metashrew
+    clone_path: ~/reference/metashrew
+    default_branch: master
+    last_known_good: 31c4198c578c1642b02f7ca6cd662612e7a8079c
+    role: wasm-indexing-runtime
+    visibility: public
+    languages: [rust]
+    patterns_doc: docs/patterns/metashrew.md
+    cwd_skills:
+      - alkanes-onboarding
+      - metashrew-indexer-patterns
+      - wasm-build-pipeline
+      - stack-as-codebase
+    reviewers:
+      - metashrew-indexer-reviewer
+      - wasm-contract-auditor
+      - rust-reviewer
+    notes: "No develop branch exists. master is active."
+    cross_repo_deps:
+      consumed_by:
+        - { repo: alkanes-rs, surface: "host functions + runtime ABI" }
+
+  subzero-rs:
+    upstream: https://github.com/subfrost/subzero-rs
+    clone_path: ~/reference/subzero-rs
+    default_branch: develop
+    last_known_good: 6e8884cad2499124926814d758ce643dd6b188e9
+    role: threshold-signing-os
+    visibility: private
+    languages: [rust]
+    patterns_doc: docs/patterns/subzero-rs.md
+    cwd_skills:
+      - alkanes-onboarding
+      - frost-roast-signing-flow
+      - stack-as-codebase
+    reviewers:
+      - subzero-frost-reviewer
+      - rust-reviewer
+    notes: "Security-critical. Three known zeroization gaps (PBKDF2-derived key, signing nonces, keystore password)."
+    cross_repo_deps:
+      consumes: []  # frtun integration with signing still pending
+      consumed_by: []  # signing service consumed by off-stack bridge programs
+
+  subfrost-mobile:
+    upstream: https://github.com/subfrost/subfrost-mobile
+    clone_path: ~/reference/subfrost-mobile
+    default_branch: main
+    last_known_good: 11572d587ef31d8acf188b3791a9acc1afd54cba
+    role: cross-platform-wallet
+    visibility: private
+    languages: [rust, kotlin, swift]
+    patterns_doc: docs/patterns/subfrost-mobile.md
+    cwd_skills:
+      - alkanes-onboarding
+      - uniffi-checksum-survival
+      - browser-wallet-safety
+      - stack-as-codebase
+    reviewers:
+      - subfrost-mobile-ffi-reviewer
+      - bitcoin-security-reviewer
+      - swift-reviewer
+      - kotlin-reviewer
+      - rust-reviewer
+    notes: "No develop branch. main is active."
+    cross_repo_deps:
+      consumes:
+        - { repo: alkanes-rs, surface: "Rust crates", note: "shared core links to alkanes-rs types via Cargo workspace dependencies" }
+      uniffi_invariant:
+        rule: "Kotlin/Swift bindings MUST be regenerated from a DEBUG cdylib (unstripped). Generating from release strips metadata → runtime checksum mismatch crash."
+
+# Cross-cutting invariants — protocol-level rules that span repos
+invariants:
+  - id: incoming-alkanes-routing
+    statement: "Edicts routing tokens to a contract as incomingAlkanes MUST use output: <vout of OP_RETURN protostone> (typically 1)."
+    enforced_in:
+      - { repo: alkanes-rs, file: "ts-sdk/src/execute.ts", surface: "inputRequirements auto-generates correct edict" }
+      - { repo: subfrost-app, file: "hooks/use*Mutation.ts", surface: "inputRequirements format" }
+      - { repo: boiler, file: "src/tests/qa_precision_test.rs:335-410, 441-511", surface: "canonical Rust test pattern" }
+    enforced_by_rule: rules/alkanes/security.md
+    enforced_by_skill: skills/protostone-cellpack-edicts/SKILL.md
+
+  - id: receipt-not-caller
+    statement: "Ownership of an Alkanes position is proved by spending a receipt token (in context.incoming_alkanes), NEVER by checking context.caller."
+    enforced_in:
+      - { repo: frost-lend, surface: "all 11 contracts" }
+      - { repo: boiler, surface: "staking auth" }
+    enforced_by_rule: rules/alkanes/security.md
+    enforced_by_skill: skills/receipt-model/SKILL.md
+
+  - id: no-symbolic-addresses-on-browser-wallets
+    statement: "Mutation hooks targeting a browser wallet MUST use real address strings, never symbolic refs like p2tr:0. Symbolic refs are keystore-only."
+    enforced_in:
+      - { repo: subfrost-app, file: "hooks/useSwapMutation.ts", surface: "isBrowserWallet check before address resolution" }
+    incident_history:
+      - { date: "2026-03-01", txid: "985436b5...", impact: "mainnet token loss" }
+    enforced_by_rule: rules/alkanes/security.md
+    enforced_by_skill: skills/browser-wallet-safety/SKILL.md
+
+  - id: uniffi-debug-so-bindings
+    statement: "Kotlin/Swift bindings MUST be regenerated from a DEBUG cdylib build of subfrost-mobile-ffi. Release builds strip metadata; generated stubs end up with stale checksums and crash the app on first FFI call."
+    enforced_in:
+      - { repo: subfrost-mobile, file: "build-release.sh:173-201", surface: "documented 4-step sequence" }
+      - { repo: subfrost-mobile, file: "tests/uniffi_bindings_in_sync.rs", surface: "CI diff check" }
+    enforced_by_skill: skills/uniffi-checksum-survival/SKILL.md
+
+  - id: factory-router-not-pool-direct
+    statement: "Swap, AddLiquidity, RemoveLiquidity MUST go through the factory router opcodes (11, 12, 13 typically), not direct pool opcodes. Pool opcode 3 (Swap) is missing on deployed pools."
+    enforced_in:
+      - { repo: subfrost-app, file: "hooks/useSwapMutation.ts:99-146", surface: "factory opcode 13 dispatch" }
+      - { repo: alkanes-rs, file: "ts-sdk/src/factory.ts", surface: "FACTORY_OPCODES constants" }
+    enforced_by_skill: skills/ts-sdk-alkanes-execute/SKILL.md
+
+  - id: three-phase-init-guard
+    statement: "Every contract opcode handler other than opcode 0 (init) MUST guard on /initialized = true. Opcode 0 itself MUST be idempotent."
+    enforced_in:
+      - { repo: frost-lend, surface: "all 11 contracts" }
+      - { repo: boiler, surface: "init handler" }
+      - { repo: Fujin-contracts-main, surface: "init handler" }
+    enforced_by_rule: rules/alkanes/security.md
+    enforced_by_skill: skills/three-phase-init/SKILL.md
+
+  - id: zeroize-secret-material
+    statement: "Every secret-bearing type MUST wrap in Zeroizing<T> or SecretBox<T>. Bare arrays returned from PBKDF2/derivation functions are forbidden."
+    enforced_in:
+      - { repo: subzero-rs, file: "crates/frtun-crypto/", surface: "compliant reference" }
+    known_gaps:
+      - { repo: subzero-rs, file: "crates/subzero-keystore/src/lib.rs:94-98", issue: "derive_key returns bare [u8; KEY_SIZE]" }
+      - { repo: subzero-rs, file: "crates/subzero-roast/src/lib.rs:269", issue: "SigningNonces lack Drop/zeroize" }
+      - { repo: subzero-rs, file: "crates/subzero-keystore/", issue: "password &str never zeroized after PBKDF2" }
+    enforced_by_skill: skills/frost-roast-signing-flow/SKILL.md
+
+# Existing knowledge assets to integrate
+external_assets:
+  - id: alkanes-mcp
+    upstream: https://github.com/0xcasuwu/alkanes-mcp
+    clone_path: ~/reference/alkanes-mcp
+    type: mcp-server
+    surface: "exposes 6 alkanes repos as tools (list_files, search_code, get_function_details, list_classes, get_api_documentation)"
+    registration: "mcp-configs/mcp-servers.json (registered in subfrost-ops v0.2.0)"
+
+  - id: alkanes-flashcards
+    upstream: https://github.com/0xcasuwu/alkanes-flashcards
+    clone_path: ~/reference/alkanes-flashcards
+    type: knowledge-base
+    surface: "280+ atomic domain facts across 24+ decks (SM-2 spacing); SQLite + Next.js"
+    seed_files:
+      - "lib/seed-data.ts"
+      - "lib/seed-data-v2.ts"
+      - "lib/seed-data-v3.ts"
+    registration: "/flashcard-lookup command (registered in subfrost-ops v0.2.0)"
